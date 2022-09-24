@@ -3,22 +3,33 @@
 #include <stdlib.h>
 #include <time.h>
 #include <mpi.h>
+#define N 2 // Number of variables
 
-double f(double x);
+typedef struct Bounds
+{
+    double a;
+    double b;
+} bounds;
+struct Bounds boundlst[N];
+
+double f(double x0, double x1);
+double integrate(double a, double n);
 double montecarlo(double a, double b, int iterations);
-void input(int rank, int world, double *pointer_a, double *pointer_b, int *pointer_iterations);
-void mpi_type(double *pointer_a, double *pointer_b, int *pointer_iterations, MPI_Datatype *mpi_input);
+void input(int rank, int world, double *pointer_a, double *pointer_b, double *pointer_c, double *pointer_d, int *pointer_iterations);
+void mpi_type(double *pointer_a, double *pointer_b, double *pointer_c, double *pointer_d, int *pointer_iterations, MPI_Datatype *mpi_input);
+double randomgen(struct Bounds bound);
 int main(int argc, char **argv)
 {
+
     int rank, world;
     int n, local_n; // number of iterations, number of iterations per process
     double local_int, total_int;
-    double a, b, dx, local_a, local_b; // start and end of integral             // change in x
+    double a, b, c, d, dx, local_a, local_b; // start and end of integral             // change in x
     double startwtime = 0.0, endwtime;
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world);
-    input(rank, world, &a, &b, &n);
+    input(rank, world, &boundlst[0].a, &boundlst[0].b, &boundlst[1].a, &boundlst[1].b, &n);
 
     if (rank == 0)
     {
@@ -44,29 +55,37 @@ int main(int argc, char **argv)
     MPI_Finalize();
 }
 
-double f(double x)
+double randomgen(struct Bounds bound)
 {
-    return pow(x, 3);
+
+    float ran = (float)(rand());
+    double val = bound.a + (ran / RAND_MAX) * (bound.b - bound.a);
+
+    return val;
+}
+
+double f(double x0, double x1)
+{
+    // x0 = bound 1 rand num
+    // x1 = bound 2 rand num
+    return pow(x0, 3) + sin(x1);
 }
 
 double montecarlo(double a, double b, int iterations)
 {
-    time_t t;
-    srand((unsigned)time(&t));
-    double random, fVal;
+
+    double fVal;
     double sum = 0;
+    for (int i = 0; i < N; i++)
+    {
+    }
 
     int curIt = 0;
 
     while (curIt < iterations - 1)
     {
-
-        // Select a random number within the limits of integration
-        float ran = (float)(rand());
-        random = a + (ran / RAND_MAX) * (b - a);
-
-        // Sample the function's values
-        fVal = f(random);
+        // Sample the function's values at the random point
+        fVal = f(randomgen(boundlst[0]), randomgen(boundlst[1]));
 
         // Add the f(x) value to the running sum
         sum += fVal;
@@ -74,35 +93,51 @@ double montecarlo(double a, double b, int iterations)
         curIt++;
     }
 
-    double estimate = (b - a) * sum / iterations;
+    double estimate = (b - a) * (sum / iterations);
 
     return estimate;
 }
 
-void mpi_type(double *pointer_a, double *pointer_b, int *pointer_iterations, MPI_Datatype *mpi_input)
+void mpi_type(double *pointer_a, double *pointer_b, double *pointer_a1, double *pointer_b1, int *pointer_iterations, MPI_Datatype *mpi_input)
 {
-    MPI_Aint address_a, address_b, addresss_iterations;
-    MPI_Aint displacement_arr[3] = {0};
-    int blocklengths_arr[3] = {1, 1, 1};
-    MPI_Datatype types_arr[3] = {MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
+    MPI_Aint address_a, address_b, address_a1, address_b1, addresss_iterations;
+    MPI_Aint displacement_arr[5] = {0};
+    int blocklengths_arr[5] = {1, 1, 1, 1, 1};
+    MPI_Datatype types_arr[5] = {MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
     MPI_Get_address(pointer_a, &address_a);
     MPI_Get_address(pointer_b, &address_b);
+    MPI_Get_address(pointer_a1, &address_a1);
+    MPI_Get_address(pointer_b1, &address_b1);
     MPI_Get_address(pointer_iterations, &addresss_iterations);
     displacement_arr[1] = address_b - address_a;
-    displacement_arr[2] = addresss_iterations - address_a;
-    MPI_Type_create_struct(3, blocklengths_arr, displacement_arr, types_arr, mpi_input);
+    displacement_arr[2] = address_a1 - address_a;
+    displacement_arr[3] = address_b1 - address_a;
+    displacement_arr[4] = addresss_iterations - address_a;
+    MPI_Type_create_struct(5, blocklengths_arr, displacement_arr, types_arr, mpi_input);
     MPI_Type_commit(mpi_input);
+
+    // displacement_arr[2] = addresss_iterations - address_a;
+    // MPI_Type_create_struct(3, blocklengths_arr, displacement_arr, types_arr, mpi_input);
+    // MPI_Type_commit(mpi_input);
 }
 
-void input(int rank, int world, double *pointer_a, double *pointer_b, int *pointer_iterations)
+void input(int rank, int world, double *pointer_a, double *pointer_b, double *pointer_a1, double *pointer_b1, int *pointer_iterations)
 {
     MPI_Datatype mpi_input;
-    mpi_type(pointer_a, pointer_b, pointer_iterations, &mpi_input);
+    mpi_type(pointer_a, pointer_b, pointer_b1, pointer_b1, pointer_iterations, &mpi_input);
+
     if (rank == 0)
     {
-        printf("Enter the starting point,ending point, and number of iterations\n");
-        scanf("%lf %lf %d", pointer_a, pointer_b, pointer_iterations);
+        printf("Enter number of iterations\n");
+        scanf("%d", pointer_iterations);
+        for (int i = 0; i < N; i++)
+        {
+            printf("Enter bounds for bound %d: ", i);
+            scanf("%lf %lf", &boundlst[i].a, &boundlst[i].b);
+        }
     }
+
     MPI_Bcast(pointer_a, 1, mpi_input, 0, MPI_COMM_WORLD);
+
     MPI_Type_free(&mpi_input);
 }
