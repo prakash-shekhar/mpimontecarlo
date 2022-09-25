@@ -36,10 +36,10 @@ int main(int argc, char **argv)
         startwtime = MPI_Wtime();
     }
 
-    dx = (b - a) / n;
+    dx = (boundlst[0].b - boundlst[0].a) / n;
     local_n = n / world; // amount of iterations each process(world) handles
 
-    local_a = a + rank * local_n * dx;                                                             // start of integral + (rank# * number of iterations * change in x)
+    local_a = boundlst[0].a + rank * local_n * dx;                                                 // start of integral + (rank# * number of iterations * change in x)
     local_b = local_a + local_n * dx;                                                              // locala +(number of iterations * change in x)
     local_int = montecarlo(local_a, local_b, local_n);                                             // run monte carlo
     printf("n: %d | a: %f | b: %f | montecarlo val: %f \n", local_n, local_a, local_b, local_int); // debug print
@@ -76,9 +76,7 @@ double montecarlo(double a, double b, int iterations)
 
     double fVal;
     double sum = 0;
-    for (int i = 0; i < N; i++)
-    {
-    }
+    int fVals[iterations];
 
     int curIt = 0;
 
@@ -86,15 +84,22 @@ double montecarlo(double a, double b, int iterations)
     {
         // Sample the function's values at the random point
         fVal = f(randomgen(boundlst[0]), randomgen(boundlst[1]));
-
+        fVals[curIt] = fVal;
         // Add the f(x) value to the running sum
         sum += fVal;
 
         curIt++;
     }
+    double mean = (sum / iterations);
+    float stnderr = 0;
+    for (int i = 0; i < iterations; i++)
+    {
+        stnderr += pow(fVals[i] - mean, 2);
+    }
+    stnderr = sqrt((stnderr / iterations)) / sqrt(iterations);
 
-    double estimate = (b - a) * (sum / iterations);
-
+    printf("Standard Deviation: %f\n", stnderr);
+    double estimate = (b - a) * mean;
     return estimate;
 }
 

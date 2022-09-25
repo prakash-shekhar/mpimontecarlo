@@ -9,17 +9,19 @@ typedef struct Bounds
     double b;
 } bounds;
 struct Bounds boundlst[N];
+int iterations;
 
 double f(double x0, double x1);
-double montecarlo(double a, double b, int iterations);
+double montecarlo(int iterations);
 double randomgen(struct Bounds bound);
 void input();
 
-int main(int argc, char argv)
+int main(int argc, char **argv)
 {
     input();
-    double result = montecarlo(boundlst[0].a, boundlst[0].b, 1000000);
+    double result = montecarlo(iterations);
     printf("Result: %f \t", result);
+    printf("Iterations: %d \t", iterations);
 
     return 0;
 }
@@ -40,7 +42,7 @@ double f(double x0, double x1)
     return pow(x0, 3) + sin(x1);
 }
 
-double montecarlo(double a, double b, int iterations)
+double montecarlo(int iterations)
 {
     // time_t t;
     // srand((unsigned)time(&t));
@@ -54,16 +56,7 @@ double montecarlo(double a, double b, int iterations)
 
     while (curIt < iterations - 1)
     {
-
-        // Select a random number within the limits of integration
-        float ran = (float)(rand());
-        random = a + (ran / RAND_MAX) * (b - a);
-
-        // Sample the function's values
-        // double poiinta1 = boundlst[0].a;
-        double b1 = boundlst[0].b;
-        int a2 = boundlst[1].a;
-        int b2 = boundlst[1].b;
+        // Sample the function's values at the random point
         fVal = f(randomgen(boundlst[0]), randomgen(boundlst[1]));
 
         // Add the f(x) value to the running sum
@@ -72,14 +65,13 @@ double montecarlo(double a, double b, int iterations)
         curIt++;
     }
 
-    double estimate = (b - a) * (sum / iterations);
+    double estimate = (boundlst[0].b - boundlst[0].a) * (sum / iterations);
 
     return estimate;
 }
 
 void input()
 {
-    int iterations;
     printf("Enter number of iterations:");
     scanf("%d", &iterations);
     for (int i = 0; i < N; i++)
