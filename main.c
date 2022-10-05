@@ -14,7 +14,7 @@ struct Bounds boundlst[N];
 
 double f(double x0, double x1);
 double integrate(double a, double n);
-double montecarlo(double a, double b, int iterations);
+double montecarlo(int iterations);
 void input(int rank, int world, double *pointer_a, double *pointer_b, double *pointer_c, double *pointer_d, int *pointer_iterations);
 void mpi_type(double *pointer_a, double *pointer_b, double *pointer_c, double *pointer_d, int *pointer_iterations, MPI_Datatype *mpi_input);
 double randomgen(struct Bounds bound);
@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     int rank, world;
     int n, local_n; // number of iterations, number of iterations per process
     double local_int, total_int;
-    double a, b, c, d, dx, local_a, local_b; // start and end of integral             // change in x
+    double dx; // start and end of integral             // change in x
     double startwtime = 0.0, endwtime;
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -37,12 +37,9 @@ int main(int argc, char **argv)
     }
 
     dx = (boundlst[0].b - boundlst[0].a) / n;
-    local_n = n / world; // amount of iterations each process(world) handles
-
-    local_a = boundlst[0].a + rank * local_n * dx;                                                 // start of integral + (rank# * number of iterations * change in x)
-    local_b = local_a + local_n * dx;                                                              // locala +(number of iterations * change in x)
-    local_int = montecarlo(local_a, local_b, local_n);                                             // run monte carlo
-    printf("n: %d | a: %f | b: %f | montecarlo val: %f \n", local_n, local_a, local_b, local_int); // debug print
+    local_n = n / world; // amount of iterations each process(world) handles                                                             // locala +(number of iterations * change in x)
+    local_int = montecarlo(local_n);                                             // run monte carlo
+    printf("n: %d | montecarlo val: %f \n", local_n, local_int); // debug print
 
     MPI_Reduce(&local_int, &total_int, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
@@ -71,7 +68,7 @@ double f(double x0, double x1)
     return pow(x0, 3) + sin(x1);
 }
 
-double montecarlo(double a, double b, int iterations)
+double montecarlo(int iterations)
 {
 
     double fVal;
@@ -98,8 +95,8 @@ double montecarlo(double a, double b, int iterations)
     }
     stnderr = sqrt((stnderr / iterations)) / sqrt(iterations);
 
-    printf("Standard Deviation: %f\n", stnderr);
-    double estimate = (b - a) * mean;
+    printf("Standard Error: %f\n", stnderr);
+    double estimate = (boundlst[0].b - boundlst[0].a) * (boundlst[1].b - boundlst[1].a) * mean;
     return estimate;
 }
 
@@ -109,10 +106,6 @@ void mpi_type(double *pointer_a, double *pointer_b, double *pointer_a1, double *
     MPI_Aint displacement_arr[5] = {0};
     int blocklengths_arr[5] = {1, 1, 1, 1, 1};
     MPI_Datatype types_arr[5] = {MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
-    MPI_Get_address(pointer_a, &address_a);
-    MPI_Get_address(pointer_b, &address_b);
-    MPI_Get_address(pointer_a1, &address_a1);
-    MPI_Get_address(pointer_b1, &address_b1);
     MPI_Get_address(pointer_iterations, &addresss_iterations);
     displacement_arr[1] = address_b - address_a;
     displacement_arr[2] = address_a1 - address_a;
