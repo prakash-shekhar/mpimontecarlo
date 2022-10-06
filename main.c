@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <mpi.h>
-#define N 2 // Number of variables
+#define N 30 // Maximum number of variables
 
 typedef struct Bounds
 {
@@ -12,10 +12,10 @@ typedef struct Bounds
 } bounds;
 struct Bounds boundlst[N];
 
-double f(double x0, double x1);
+double f(double xinputs[N]);
 double integrate(double a, double n);
-double montecarlo(int iterations);
-void input(int rank, int world, double *pointer_a, double *pointer_b, double *pointer_c, double *pointer_d, int *pointer_iterations);
+double montecarlo(int numvars, int iterations);
+void input(int rank, int world, int *numvars, double *pointer_a, double *pointer_b, double *pointer_c, double *pointer_d, int *pointer_iterations);
 void mpi_type(double *pointer_a, double *pointer_b, double *pointer_c, double *pointer_d, int *pointer_iterations, MPI_Datatype *mpi_input);
 double randomgen(struct Bounds bound);
 int main(int argc, char **argv)
@@ -23,22 +23,21 @@ int main(int argc, char **argv)
 
     int rank, world;
     int n, local_n; // number of iterations, number of iterations per process
+    int numvars;
     double local_int, total_int;
-    double dx; // start and end of integral             // change in x
     double startwtime = 0.0, endwtime;
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world);
-    input(rank, world, &boundlst[0].a, &boundlst[0].b, &boundlst[1].a, &boundlst[1].b, &n);
+    input(rank, world, &numvars, &boundlst[0].a, &boundlst[0].b, &boundlst[1].a, &boundlst[1].b, &n);
 
     if (rank == 0)
     {
         startwtime = MPI_Wtime();
     }
 
-    dx = (boundlst[0].b - boundlst[0].a) / n;
     local_n = n / world; // amount of iterations each process(world) handles                                                             // locala +(number of iterations * change in x)
-    local_int = montecarlo(local_n);                                             // run monte carlo
+    local_int = montecarlo(numvars, local_n);                                             // run monte carlo
     printf("n: %d | montecarlo val: %f \n", local_n, local_int); // debug print
 
     MPI_Reduce(&local_int, &total_int, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -61,14 +60,15 @@ double randomgen(struct Bounds bound)
     return val;
 }
 
-double f(double x0, double x1)
+double f(double xinputs[N])
 {
     // x0 = bound 1 rand num
     // x1 = bound 2 rand num
-    return pow(x0, 3) + sin(x1);
+    // given 0-2, 3-7, 4-5 from inside out evaluate to ~197.177
+    return pow(xinputs[0], 3) + sin(xinputs[1]) + pow(2, xinputs[3]);
 }
 
-double montecarlo(int iterations)
+double montecarlo(int numvars, int iterations)
 {
 
     double fVal;
@@ -80,7 +80,11 @@ double montecarlo(int iterations)
     while (curIt < iterations - 1)
     {
         // Sample the function's values at the random point
-        fVal = f(randomgen(boundlst[0]), randomgen(boundlst[1]));
+        double xinputs[30];
+        for(int i = 0; i<numvars; i++){
+            xinputs[i] = randomgen(boundlst[i]);
+        }
+        fVal = f(xinputs);
         fVals[curIt] = fVal;
         // Add the f(x) value to the running sum
         sum += fVal;
@@ -96,7 +100,11 @@ double montecarlo(int iterations)
     stnderr = sqrt((stnderr / iterations)) / sqrt(iterations);
 
     printf("Standard Error: %f\n", stnderr);
-    double estimate = (boundlst[0].b - boundlst[0].a) * (boundlst[1].b - boundlst[1].a) * mean;
+    double estimate = mean;
+    // (b-a)*(d-c)*...*mean = integral
+    for(int i = 0; i < numvars; i++){
+        estimate *= (boundlst[i].b-boundlst[i].a);
+    }
     return estimate;
 }
 
@@ -119,16 +127,18 @@ void mpi_type(double *pointer_a, double *pointer_b, double *pointer_a1, double *
     // MPI_Type_commit(mpi_input);
 }
 
-void input(int rank, int world, double *pointer_a, double *pointer_b, double *pointer_a1, double *pointer_b1, int *pointer_iterations)
+void input(int rank, int world, int *numvars, double *pointer_a, double *pointer_b, double *pointer_a1, double *pointer_b1, int *pointer_iterations)
 {
     MPI_Datatype mpi_input;
     mpi_type(pointer_a, pointer_b, pointer_b1, pointer_b1, pointer_iterations, &mpi_input);
 
     if (rank == 0)
     {
-        printf("Enter number of iterations\n");
+        printf("Enter number of variables: \n");
+        scanf("%d", numvars);
+        printf("Enter number of iterations: \n");
         scanf("%d", pointer_iterations);
-        for (int i = 0; i < N; i++)
+        for (int i = 0; i < *numvars; i++)
         {
             printf("Enter bounds for bound %d: ", i);
             scanf("%lf %lf", &boundlst[i].a, &boundlst[i].b);
@@ -139,3 +149,4 @@ void input(int rank, int world, double *pointer_a, double *pointer_b, double *po
 
     MPI_Type_free(&mpi_input);
 }
+
