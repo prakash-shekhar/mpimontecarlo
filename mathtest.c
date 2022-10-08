@@ -84,4 +84,4 @@ void input()
     // printf("bound 0 %lf %lf", boundlst[0].a, boundlst[0].b);
     // printf("bound 1 %lf %lf", boundlst[1].a, boundlst[1].b);
     // printf("Iterations: %d", iterations);
-}
+}    

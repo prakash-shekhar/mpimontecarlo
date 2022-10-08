@@ -36,8 +36,8 @@ int main(int argc, char **argv)
         startwtime = MPI_Wtime();
     }
 
-    local_n = n / world; // amount of iterations each process(world) handles                                                             // locala +(number of iterations * change in x)
-    local_int = montecarlo(numvars, local_n);                                             // run monte carlo
+    local_n = n / world;                                         // amount of iterations each process(world) handles                                                             // locala +(number of iterations * change in x)
+    local_int = montecarlo(numvars, local_n);                    // run monte carlo
     printf("n: %d | montecarlo val: %f \n", local_n, local_int); // debug print
 
     MPI_Reduce(&local_int, &total_int, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -53,6 +53,7 @@ int main(int argc, char **argv)
 
 double randomgen(struct Bounds bound)
 {
+    srand((unsigned)time(NULL) * getpid());
 
     float ran = (float)(rand());
     double val = bound.a + (ran / RAND_MAX) * (bound.b - bound.a);
@@ -79,7 +80,8 @@ double montecarlo(int numvars, int iterations)
     {
         // Sample the function's values at the random point
         double xinputs[30];
-        for(int i = 0; i<numvars; i++){
+        for (int i = 0; i < numvars; i++)
+        {
             xinputs[i] = randomgen(boundlst[i]);
         }
         fVal = f(xinputs);
@@ -100,8 +102,9 @@ double montecarlo(int numvars, int iterations)
     printf("Standard Error: %f\n", stnderr);
     double estimate = mean;
     // (b-a)*(d-c)*...*mean = integral
-    for(int i = 0; i < numvars; i++){
-        estimate *= (boundlst[i].b-boundlst[i].a);
+    for (int i = 0; i < numvars; i++)
+    {
+        estimate *= (boundlst[i].b - boundlst[i].a);
     }
     return estimate;
 }
@@ -134,7 +137,8 @@ void input(int rank, int world, int *numvars, int *pointer_iterations)
     {
         printf("Enter number of variables: \n");
         scanf("%d", numvars);
-        if(*numvars > N){
+        if (*numvars > N)
+        {
             fprintf(stderr, "Too many variables! (max = 30)\n");
             exit(1);
         }
@@ -151,4 +155,3 @@ void input(int rank, int world, int *numvars, int *pointer_iterations)
 
     MPI_Type_free(&mpi_input);
 }
-
